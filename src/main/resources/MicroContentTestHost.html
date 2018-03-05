@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MicroContentTestHost</title>
+    <script type="application/javascript">
+        function getData() {
+            try {
+                var input = JSON.parse(document.getElementById("data-input").value);
+            } catch (e){
+                console.log(e);
+                var input = {};
+            }
+            return input
+        }
+        function getViewerUrl() {
+            return 'http://localhost:8090';
+        }
+        function propagateLayoutChanges() {
+            // ignore
+        }
+        function sendXapiStatement() {
+            // ignore
+        }
+        function registerOnSubmitListener(listener) {
+            window.onSubmitListener = listener;
+        }
+        function setXapiObjectGetter(getter) {
+            // ignore
+        }
+        function getBoundingClientRect() {
+            return document.getElementById('container').getBoundingClientRect();
+        }
+        function injectIframeWithSrc(containerClassName, src) {
+            const whitelist = ["https://www.youtube-nocookie.com/embed/", "https://player.vimeo.com/video/"];
+            if (typeof src === "string" && whitelist.findIndex(function (e) {
+                        return src.startsWith(e)
+                    }) !== -1) {
+                const container = document.getElementById('container').getElementsByClassName(containerClassName)[0];
+                if (container !== undefined) {
+                    const iframe = document.createElement("iframe");
+                    iframe.src = src;
+                    container.appendChild(iframe);
+                }
+            }
+        }
+
+        function updateData() {
+            var data = getData();
+            var url = getViewerUrl();
+            //set title from data
+            if (typeof data.title !== 'undefined') {
+                document.getElementById('title').innerHTML = data.title
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/\"/g, '&quot;')
+                        .replace(/\'/g, '&#39;')
+                        .replace(/\//g, '&#x2F;');
+            }
+            // clear host element
+            document.getElementById('container').innerHTML = "";
+            // load host data
+            caja.load(document.getElementById('container'), uriPolicy, function (frame) {
+                frame.code(url, 'text/html')
+                        .api(
+                                {
+                                    getData: getData,
+                                    propagateLayoutChanges: propagateLayoutChanges,
+                                    sendXapiStatement: sendXapiStatement,
+                                    registerOnSubmitListener: registerOnSubmitListener,
+                                    setXapiObjectGetter: setXapiObjectGetter,
+                                    getBoundingClientRect: getBoundingClientRect,
+                                    injectIframeWithSrc: injectIframeWithSrc,
+                                    log: console.log
+                                })
+                        .run();
+            });
+        }
+    </script>
+    <script type="text/javascript" src="http://caja.appspot.com/caja.js"></script>
+</head>
+<body>
+<h1>TestHost</h1>
+<label>Enter JSON-Data:</label>
+<textarea id="data-input"></textarea>
+<button onclick="updateData()">Update Data and Load View</button>
+<hr/>
+
+<h1 id="title">As a convention we render the title attribute of your data here! (you dont seem to have one).</h1>
+<div id="container"></div>
+<button onclick="window.onSubmitListener()">Submit/Undo</button>
+<script type="application/javascript">
+    caja.initialize({
+        cajaServer: 'https://caja.appspot.com/',
+        debug: true
+    });
+    var uriPolicy = {
+        imgRegex: (/\.(gif|jpg|jpeg|tiff|png|webp)$/i),
+        rewrite: function (uri, p1, p2, context) {
+            if (context.TYPE === "MARKUP" && context.XML_ATTR === "src" && context.XML_TAG === "img" && this.imgRegex.test(uri.toString())) {
+                return uri;
+            } else if (context.TYPE === "CSS" && context.CSS_PROP === "background-image" && this.imgRegex.test(uri.toString())) {
+                return uri;
+            }
+        }
+    };
+</script>
+</body>
+</html>
