@@ -7,30 +7,20 @@
         function getData() {
             try {
                 var input = JSON.parse(document.getElementById("data-input").value);
-            } catch (e){
+            } catch (e) {
                 console.log(e);
                 var input = {};
             }
             return input
         }
         function getViewerUrl() {
-            return 'http://localhost:8090';
+            return 'http://localhost:8090/viewer.html';
         }
-        function propagateLayoutChanges() {
-            // ignore
+
+        function getEditorUrl() {
+            return 'http://localhost:8090/editor.html'
         }
-        function sendXapiStatement() {
-            // ignore
-        }
-        function registerOnSubmitListener(listener) {
-            window.onSubmitListener = listener;
-        }
-        function setXapiObjectGetter(getter) {
-            // ignore
-        }
-        function getBoundingClientRect() {
-            return document.getElementById('container').getBoundingClientRect();
-        }
+
         function injectIframeWithSrc(containerClassName, src) {
             const whitelist = ["https://www.youtube-nocookie.com/embed/", "https://player.vimeo.com/video/"];
             if (typeof src === "string" && whitelist.findIndex(function (e) {
@@ -45,7 +35,7 @@
             }
         }
 
-        function updateData() {
+        function reloadViewer() {
             var data = getData();
             var url = getViewerUrl();
             //set title from data
@@ -59,37 +49,108 @@
                         .replace(/\//g, '&#x2F;');
             }
             // clear host element
-            document.getElementById('container').innerHTML = "";
+            document.getElementById('viewer_container').innerHTML = "";
             // load host data
-            caja.load(document.getElementById('container'), uriPolicy, function (frame) {
+            caja.load(document.getElementById('viewer_container'), uriPolicy, function (frame) {
                 frame.code(url, 'text/html')
                         .api(
                                 {
                                     getData: getData,
-                                    propagateLayoutChanges: propagateLayoutChanges,
-                                    sendXapiStatement: sendXapiStatement,
-                                    registerOnSubmitListener: registerOnSubmitListener,
-                                    setXapiObjectGetter: setXapiObjectGetter,
-                                    getBoundingClientRect: getBoundingClientRect,
+                                    propagateLayoutChanges: function () {
+                                    },
+                                    sendXapiStatement: function () {
+                                    },
+                                    registerOnSubmitListener: function (listener) {
+                                        window.onViewerSubmitListener = listener;
+                                    },
+                                    setXapiObjectGetter: function (getter) {
+                                    },
+                                    getBoundingClientRect: function () {
+                                        return document.getElementById('viewer_container').getBoundingClientRect();
+                                    },
                                     injectIframeWithSrc: injectIframeWithSrc,
                                     log: console.log
                                 })
                         .run();
             });
         }
+
+        function reloadEditor() {
+            var url = getEditorUrl();
+            // clear host element
+            document.getElementById('editor_container').innerHTML = "";
+            // load host data
+            caja.load(document.getElementById('editor_container'), uriPolicy, function (frame) {
+                frame.code(url, 'text/html')
+                        .api(
+                                {
+                                    getData: getData,
+                                    setDataGetter: function (dataGetter) {
+                                        window.dataGetter = dataGetter;
+                                    }
+                                })
+                        .run();
+            });
+        }
+
+        function loadDataFromEditor() {
+            if (window.dataGetter) {
+                var dataString = JSON.stringify(window.dataGetter());
+                document.getElementById("data-input").value = dataString;
+                window.history.replaceState({}, undefined, window.location.origin + "?data=" + encodeURIComponent(dataString));
+            }
+        }
     </script>
     <script type="text/javascript" src="http://caja.appspot.com/caja.js"></script>
+    <link rel="stylesheet" href="http://localhost:8090/style.css" type="text/css"/>
 </head>
 <body>
 <h1>TestHost</h1>
-<label>Enter JSON-Data:</label>
-<textarea id="data-input"></textarea>
-<button onclick="updateData()">Update Data and Load View</button>
-<hr/>
+<div id="data"
+     class="panel panel-primary"
+     style="width: 97%; height: 300px; float: left; border: 1px red solid; margin: 0.5%; overflow: scroll">
+    <div class="panel-heading">
+        <h2>Data</h2>
+        <p>
+            <button class="btn btn-raised btn-info" onclick="loadDataFromEditor()">Load Data from Editor</button>
+        </p>
+    </div>
+    <div class="panel-body">
+        <textarea id="data-input" style="width: 80%; min-height: 150px"></textarea>
+    </div>
+</div>
 
-<h1 id="title">As a convention we render the title attribute of your data here! (you dont seem to have one).</h1>
-<div id="container"></div>
-<button onclick="window.onSubmitListener()">Submit/Undo</button>
+<div id="editor"
+     class="panel panel-primary"
+     style="width: 48%; height: 500px; float: left; border: 1px red solid; margin: 0.5%; overflow: scroll">
+    <div class="panel-heading">
+        <h2>Editor</h2>
+        <p>
+            <button class="btn btn-raised btn-info" onclick="reloadEditor()">Reload Editor</button>
+        </p>
+    </div>
+    <div class="panel-body"
+         id="editor_container"></div>
+</div>
+
+<div id="viewer"
+     class="panel panel-primary"
+     style="width: 48%; height: 500px; float: left; border: 1px red solid; margin: 0.5%; overflow: scroll">
+    <div class="panel-heading">
+        <h2>Viewer</h2>
+        <p>
+            <button class="btn btn-raised btn-info" onclick="reloadViewer()">Reload Viewer</button>
+        </p>
+        <h3 id="title">As a convention we render the title attribute of your data here! (you dont seem to have
+            one).</h3>
+    </div>
+    <div class="panel-body"
+         id="viewer_container"></div>
+    <div class="panel-footer">
+        <button onclick="window.onViewerSubmitListener()">Submit/Undo</button>
+    </div>
+
+</div>
 <script type="application/javascript">
     caja.initialize({
         cajaServer: 'https://caja.appspot.com/',
@@ -105,6 +166,25 @@
             }
         }
     };
+    if (window.location.search !== undefined && window.location.search.length > 0) {
+        var d = window.location.search.substr(1).split("&")
+                .filter(function (str) {
+                    return str.indexOf("data=") === 0
+                })
+                .map(function (str) {
+                    return JSON.parse(decodeURIComponent(str.substr(5)))
+                });
+        if (d.length === 1) {
+            document.getElementById("data-input").value = JSON.stringify(d[0]);
+        } else if (d.length > 1) {
+            document.getElementById("data-input").value = JSON.stringify(d);
+        } else {
+            document.getElementById("data-input").value = "{}";
+        }
+    }
+    reloadEditor();
+    loadDataFromEditor();
+    reloadViewer();
 </script>
 </body>
 </html>
